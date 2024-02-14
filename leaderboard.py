@@ -10,7 +10,7 @@ class Pagination(View):
         self.total_pages = None
         self.index = 1
         self.connection = connect_to_database()
-        super().__init__(timeout=None)
+        super().__init__(timeout=None)# can change this if you want to timeout and uncomment "async def on_timeout(self):" method if you do.
 
     async def navigate(self):
         emb, self.total_pages = await self.get_page(self.index)
@@ -50,16 +50,15 @@ class Pagination(View):
         else:
             self.index = 1
         await self.edit_page(interaction)
-
+    """
     async def on_timeout(self):
         # remove buttons on timeout
         message = await self.interaction.original_response()
         await message.edit(view=None)
-
+    """
     @staticmethod
     def compute_total_pages(total_results: int, results_per_page: int) -> int:
         return ((total_results - 1) // results_per_page) + 1
-
 
 class EloLeaderboard:
     def __init__(self, bot):
@@ -78,8 +77,6 @@ class EloLeaderboard:
             offset = (page - 1) * chunk_size
             for user in results[offset:offset + chunk_size]:
                 emb.add_field(name="", value=f"<@{user['discord_id']}> Elo `{user['elo']}`", inline=False)
-
-
 
             n = Pagination.compute_total_pages(len(results), chunk_size)
             emb.set_footer(text=f"Page {page} from {n}")
