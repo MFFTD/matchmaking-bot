@@ -385,10 +385,10 @@ class GameManager(Variables):
                     if current_elo <= 15:
                         elo_loss = current_elo
                     else:
-                        elo_loss = 16
+                        elo_loss = 15
                     losing_team_ids[discord_id] -= elo_loss
                 elif 100 <= current_elo < 200:
-                    elo_loss = 18
+                    elo_loss = 16
                     losing_team_ids[discord_id] -= elo_loss
 
                 elif 200 <= current_elo < 300:
