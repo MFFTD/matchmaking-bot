@@ -2,7 +2,7 @@ import aiosqlite
 import asyncio
 
 class AsyncSQLiteDB:
-    def __init__(self, db_path='mf5s.db'):
+    def __init__(self, db_path='database.db'):
         self.db_path = db_path
 
     async def connect(self):
