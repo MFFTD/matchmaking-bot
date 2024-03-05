@@ -3,7 +3,6 @@ import asyncio
 import uuid
 import random
 import roles
-import variables
 from typing import List
 from utils.db import AsyncSQLiteDB
 from variables import BotVariables as Variables
@@ -13,6 +12,7 @@ game_dict = {}
 class GameManager(Variables):
     def __init__(self, bot):
         self.bot = bot
+        self.game_dict = game_dict
         self.db = AsyncSQLiteDB()
         asyncio.create_task(self.db.connect())
         GameManager.PlayersDropdown.game_manager = GameManager
@@ -106,7 +106,7 @@ class GameManager(Variables):
         )
 
         await asyncio.sleep(0)
-        
+
         # 0 is picking phase
         players_dropdown = GameManager.PlayersDropdown(game_id, 0, self, self.bot)
 
@@ -154,9 +154,9 @@ class GameManager(Variables):
             self.game_id = game_id
             self.picking_phase = picking_phase
             self.game_manager = game_manager
-            self.bot = bot 
+            self.bot = bot
             self.end_game_view = game_manager.EndGameView(game_id, game_manager, bot)
-           
+
             team_number = 1 if picking_phase % 4 in (0, 3) else 2
             self.current_captain = game_dict[self.game_id][f'team_{team_number}_captain'][0] if game_dict[self.game_id][f'team_{team_number}_captain'] else None
             options = [discord.SelectOption(label=str(player.display_name), value=int(player.id)) for player in game_dict[self.game_id]['players']]
@@ -230,7 +230,7 @@ class GameManager(Variables):
                 message = await matchmaking_channel.send(content=mention_players, embed=game_start_embed, view=end_game_view)
                 game_dict[self.game_id]['message_id'] = message.id
 
-    """  
+    """
     async def delete_game(self, interaction, game_id):
         global game_dict
         guild = self.bot.get_guild(Variables.guild_id)
@@ -269,7 +269,7 @@ class GameManager(Variables):
                 matchmaking_channel = self.bot.get_channel(Variables.matchmaking_channel_id)
                 message_id = game_dict[self.game_id]['message_id']
                 message = await matchmaking_channel.fetch_message(message_id)
-                
+
                 # disabling buttons when game is scored.
                 self.children[0].disabled = True
                 self.children[1].disabled = True
@@ -282,7 +282,7 @@ class GameManager(Variables):
         @discord.ui.button(label="Team 2 Won", custom_id="team_two", style=discord.ButtonStyle.green)
         async def team2(self, interaction: discord.Interaction, Button: discord.ui.Button):
             await interaction.response.defer()
-            
+
             if interaction.user.id == game_dict[self.game_id]['team_2_captain'][0].id:
                 team = 2
                 matchmaking_channel = self.bot.get_channel(Variables.matchmaking_channel_id)
@@ -296,7 +296,7 @@ class GameManager(Variables):
                 await self.score(team, interaction)
             else:
                 await interaction.response.send_message('You are not the captain of Team 2.', ephemeral=True)
-        
+
         async def score(self, team, interaction: discord.Interaction):
             guild = self.game_manager.bot.get_guild(Variables.guild_id)
             team_one_ids = [str(player.id) for player in game_dict[self.game_id]['team_one']]
@@ -307,7 +307,7 @@ class GameManager(Variables):
             try:
                 placeholders_team_one = ', '.join(['?'for _ in team_one_ids])
                 sql_get_elo_team_one = f'SELECT `discord_id`, `elo` FROM `users` WHERE `discord_id` IN ({placeholders_team_one})'
-                params_team_one = team_one_ids           
+                params_team_one = team_one_ids
                 results_team_one = await self.db.execute_query(sql_get_elo_team_one, params_team_one, fetchall=True)
                 elo_team_one_mapping = {result[0]: result[1] for result in results_team_one}
 
@@ -331,6 +331,7 @@ class GameManager(Variables):
 
             # iterating trough winning team dict to check elos and give elo points and fetching discord member object to edit their server nickname with the new elo
             for discord_id, current_elo in winning_team_ids.items():
+                await asyncio.sleep(1)
                 member = await interaction.guild.fetch_member(int(discord_id))
 
                 if current_elo < 100:
@@ -379,7 +380,7 @@ class GameManager(Variables):
 
                 nick = member.display_name
                 await member.edit(nick=f"[{winning_team_ids[discord_id]}]{nick.split(']')[1]}")
-                        
+
             for discord_id, current_elo in losing_team_ids.items():
                 if current_elo < 100:
                     if current_elo <= 15:
@@ -430,7 +431,7 @@ class GameManager(Variables):
                 member = await interaction.guild.fetch_member(int(discord_id))
                 nick = member.display_name
                 await member.edit(nick=f"[{losing_team_ids[discord_id]}]{nick.split(']')[1]}")
-                
+
             # need to check if any discord roles needs to be changed after elo gain / loss
             await self.update_roles(winning_team_ids, losing_team_ids)
 
@@ -448,52 +449,53 @@ class GameManager(Variables):
                 except Exception as e:
                     print(f'Error updating losing team: {e}')
 
-            # building discord embed description with the winner and loser team with their new elos 
+            # building discord embed description with the winner and loser team with their new elos
             if team == 1:
                 winners_description = f"Winners :trophy:\n"
                 for discord_id, new_elo in winning_team_ids.items():
-                    old_elo = elo_team_one_mapping.get(discord_id, 0)  
-                    winners_description += f"<@{discord_id}>: {old_elo} → {new_elo}\n"
+                    old_elo = elo_team_one_mapping.get(discord_id, 0)
+                    winners_description += f"<@{discord_id}>: + {elo_gain}\n"
 
                 losers_description = f"Losers :x:\n"
                 for discord_id, new_elo in losing_team_ids.items():
-                    old_elo = elo_team_two_mapping.get(discord_id, 0)  
-                    losers_description += f"<@{discord_id}>: {old_elo} → {new_elo}\n"
-            
+                    old_elo = elo_team_two_mapping.get(discord_id, 0)
+                    losers_description += f"<@{discord_id}>: - {elo_loss}\n"
+
             if team == 2:
                 winners_description = f"Winners :trophy:\n"
                 for discord_id, new_elo in winning_team_ids.items():
-                    old_elo = old_elo_team_two.get(discord_id, 0)  
-                    winners_description += f"<@{discord_id}>: {old_elo} → {new_elo}\n"
+                    old_elo = old_elo_team_two.get(discord_id, 0)
+                    winners_description += f"<@{discord_id}>: + {elo_gain}\n"
 
                 losers_description = f"Losers :x:\n"
                 for discord_id, new_elo in losing_team_ids.items():
-                    old_elo = old_elo_team_one.get(discord_id, 0)  
-                    losers_description += f"<@{discord_id}>: {old_elo} → {new_elo}\n"
+                    old_elo = old_elo_team_one.get(discord_id, 0)
+                    losers_description += f"<@{discord_id}>: - {elo_loss}\n"
 
             game_result_embed = discord.Embed(
                 title="Game result",
                 description=f"{winners_description}\n{losers_description}",
                 color=0xFFFF00
             )
-            
+
             game_result_embed.set_footer(text=f"MF 5S\nGame ID: {self.game_id}", icon_url="https://cdn.discordapp.com/attachments/1199571571510104179/1201139545236840528/misfitspic.png")
 
             result_channel = guild.get_channel(Variables.result_channel_id)
             await result_channel.send(embed=game_result_embed)
-            
+
             # removing the game after it is scored.
             try:
                 if self.game_id in game_dict:
                     del game_dict[self.game_id]
             except Exception as e:
                 print(f"Error during game removal: {e}")
-            
+
         async def update_roles(self, winning_team_ids, losing_team_ids):
             guild = self.game_manager.bot.get_guild(Variables.guild_id)
             teams_combined = {**winning_team_ids, **losing_team_ids}
 
             for discord_id, new_elo in teams_combined.items():
+                await asyncio.sleep(1)
                 member = await guild.fetch_member(int(discord_id))
 
                 role_to_add_id = None
@@ -512,7 +514,7 @@ class GameManager(Variables):
                     role_to_remove_ids = [roles.Lieutenant, roles.Corporal]
 
                 elif 400 <= new_elo < 500:
-                    role_to_add_id = roles.Lieutenant 
+                    role_to_add_id = roles.Lieutenant
                     role_to_remove_ids = [roles.Admiral, roles.Sergeant]
 
                 elif 500 <= new_elo < 600:
@@ -540,17 +542,19 @@ class GameManager(Variables):
                     role_to_remove_ids = [roles.Brigadier]
 
                 if role_to_add_id:
+                    await asyncio.sleep(1)
                     role_to_add = guild.get_role(role_to_add_id)
                     if role_to_add not in member.roles:
                         await member.add_roles(role_to_add)
 
                 for role_to_remove_id in role_to_remove_ids:
+                    await asyncio.sleep(1)
                     role_to_remove = guild.get_role(role_to_remove_id)
                     if role_to_remove in member.roles:
                         await member.remove_roles(role_to_remove)
 
     class PlayersView(discord.ui.View):
         def __init__(self, players_dropdown):
-            super().__init__(timeout=None) 
+            super().__init__(timeout=None)
             self.add_item(players_dropdown)
 
