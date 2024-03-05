@@ -24,7 +24,8 @@ class MyBot(commands.Bot):
     async def setup_hook(self):
         for ext in self.initial_extensions:
             await self.load_extension(ext)
+        """
         await bot.tree.sync(guild=discord.Object(id=1201918611590221896))
-
+        """
 bot = MyBot()
 bot.run(config.TOKEN)
